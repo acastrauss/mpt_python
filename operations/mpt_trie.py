@@ -28,53 +28,89 @@ class MPT:
                 Make extension from leaf, and add branch as a child with
                 2 children, one with current leaf sliced key
                 and other with new sliced key
+                If there are no similarities between keys, create just a branch, no extension
             '''
-            sharedKey = self.LastSimilarNode.Key.GetSharedKeyWithGivenKey(node_key.NodeKey(f"{self.TearedKey.TearedPart}{self.TearedKey.PartThatLeft}"))
+            if self.LastSimilarNode.Key.CountSimilaritiesWithKey(node_key.NodeKey(f"{self.TearedKey.TearedPart}{self.TearedKey.PartThatLeft}")) > 0:
+                sharedKey = self.LastSimilarNode.Key.GetSharedKeyWithGivenKey(node_key.NodeKey(f"{self.TearedKey.TearedPart}{self.TearedKey.PartThatLeft}"))
 
-            newExtension = ExtensionNode(
-                prefix=sharedKey.GetPrefix(node_enums.NodeType.EXTENSION),
-                sharedKey=sharedKey,
-                branchChild=None,
-                parent=self.LastSimilarNode.Parent
-            )
+                newExtension = ExtensionNode(
+                    prefix=sharedKey.GetPrefix(node_enums.NodeType.EXTENSION),
+                    sharedKey=sharedKey,
+                    branchChild=None,
+                    parent=self.LastSimilarNode.Parent
+                )
 
-            newBranch = BranchNode(
-                children={},
-                parent=newExtension,
-                value=None
-            )
+                newBranch = BranchNode(
+                    children={},
+                    parent=newExtension,
+                    value=None
+                )
 
-            newExtension.BranchChild = newBranch
+                newExtension.BranchChild = newBranch
 
-            lsnKeyLen = self.LastSimilarNode.Key.GetLen()
-            newLeaf1Key = node_key.NodeKey(
-                self.LastSimilarNode.Key.Key[lsnKeyLen-len(self.TearedKey.PartThatLeft):]
-            )
+                lsnKeyLen = self.LastSimilarNode.Key.GetLen()
+                newLeaf1Key = node_key.NodeKey(
+                    self.LastSimilarNode.Key.Key[lsnKeyLen-len(self.TearedKey.PartThatLeft):]
+                )
 
-            fixedNewLeaf1Key = node_key.NodeKey(newLeaf1Key.Key[1:])
-            newBranch.Children[newLeaf1Key.Key[0]] = leaf_node.LeafNode(
-                prefix=fixedNewLeaf1Key.GetPrefix(node_enums.NodeType.LEAF),
-                keyEnd=fixedNewLeaf1Key,
-                value=self.LastSimilarNode.Value,
-                parent=newBranch
-            )
+                fixedNewLeaf1Key = node_key.NodeKey(newLeaf1Key.Key[1:])
+                newBranch.Children[newLeaf1Key.Key[0]] = leaf_node.LeafNode(
+                    prefix=fixedNewLeaf1Key.GetPrefix(node_enums.NodeType.LEAF),
+                    keyEnd=fixedNewLeaf1Key,
+                    value=self.LastSimilarNode.Value,
+                    parent=newBranch
+                )
 
+                newLeaf2Key = self.TearedKey.PartThatLeft
+                fixedNewLeaf2Key = node_key.NodeKey(newLeaf2Key[1:])
+                newBranch.Children[newLeaf2Key[0]] = leaf_node.LeafNode(
+                    prefix=fixedNewLeaf1Key.GetPrefix(node_enums.NodeType.LEAF),
+                    keyEnd=fixedNewLeaf2Key,
+                    value=value,
+                    parent=newBranch
+                )
 
-            newLeaf2Key = self.TearedKey.PartThatLeft
-            fixedNewLeaf2Key = node_key.NodeKey(newLeaf2Key[1:])
-            newBranch.Children[newLeaf2Key[0]] = leaf_node.LeafNode(
-                prefix=fixedNewLeaf1Key.GetPrefix(node_enums.NodeType.LEAF),
-                keyEnd=fixedNewLeaf2Key,
-                value=value,
-                parent=newBranch
-            )
+                if self.LastSimilarNode.Parent == None:
+                    self.Root = newExtension
+                elif self.LastSimilarNode.Parent.Type == node_enums.NodeType.BRANCH:
+                    self.LastSimilarNode.Parent.Children[self.LastBranchKeyAccessed] = newExtension
+                else:
+                    raise "only branch can be a parent of a leaf"
+            else: # just create a branch
+                newBranch = BranchNode(
+                    children={},
+                    parent=self.LastSimilarNode.Parent,
+                    value=None
+                )
 
-            if self.LastSimilarNode.Parent == None:
-                self.Root = newExtension
-            elif self.LastSimilarNode.Parent.Type == node_enums.NodeType.BRANCH:
-                self.LastSimilarNode.Parent.Children[self.LastBranchKeyAccessed] = newExtension
-            else:
-                raise "only branch can be a parent of a leaf"
+                lsnKeyLen = self.LastSimilarNode.Key.GetLen()
+                newLeaf1Key = node_key.NodeKey(
+                    self.LastSimilarNode.Key.Key[lsnKeyLen-len(self.TearedKey.PartThatLeft):]
+                )
+
+                fixedNewLeaf1Key = node_key.NodeKey(newLeaf1Key.Key[1:])
+                newBranch.Children[newLeaf1Key.Key[0]] = leaf_node.LeafNode(
+                    prefix=fixedNewLeaf1Key.GetPrefix(node_enums.NodeType.LEAF),
+                    keyEnd=fixedNewLeaf1Key,
+                    value=self.LastSimilarNode.Value,
+                    parent=newBranch
+                )
+
+                newLeaf2Key = self.TearedKey.PartThatLeft
+                fixedNewLeaf2Key = node_key.NodeKey(newLeaf2Key[1:])
+                newBranch.Children[newLeaf2Key[0]] = leaf_node.LeafNode(
+                    prefix=fixedNewLeaf1Key.GetPrefix(node_enums.NodeType.LEAF),
+                    keyEnd=fixedNewLeaf2Key,
+                    value=value,
+                    parent=newBranch
+                )
+
+                if self.LastSimilarNode.Parent == None:
+                    self.Root = newBranch
+                elif self.LastSimilarNode.Parent.Type == node_enums.NodeType.BRANCH:
+                    self.LastSimilarNode.Parent.Children[self.LastBranchKeyAccessed] = newBranch
+                else:
+                    raise "only branch can be a parent of a leaf"
 
         elif self.LastSimilarNode.Type == node_enums.NodeType.BRANCH:
             if not self.LastSimilarNode.IsKeyInBranch(node_key.NodeKey(self.TearedKey.PartThatLeft)):
@@ -307,7 +343,7 @@ class MPT:
             '''
                 Child.Parent branch becomes leaf, with key branchIndx + sibling.Key
             '''
-            newLeafKey = node_key.NodeKey(self.LastBranchKeyAccessed + sibling.Key)
+            newLeafKey = node_key.NodeKey(self.LastBranchKeyAccessed + sibling.Key.Key)
             newLeaf = leaf_node.LeafNode(
                 prefix=newLeafKey.GetPrefix(node_enums.NodeType.LEAF),
                 keyEnd=newLeafKey,
@@ -316,7 +352,7 @@ class MPT:
             )
 
             parentBranchIndx = child.Parent.Parent.GetBranchIndxForParticularNode(child.Parent)
-            child.Parent.Parent[parentBranchIndx] = newLeaf
+            child.Parent.Parent.Children[parentBranchIndx] = newLeaf
 
         elif sibling.Type == node_enums.NodeType.EXTENSION:
             '''
@@ -328,7 +364,7 @@ class MPT:
             sibling.Parent = child.Parent.Parent
 
             parentBranchIndx = child.Parent.Parent.GetBranchIndxForParticularNode(child.Parent)
-            child.Parent.Parent[parentBranchIndx] = sibling
+            child.Parent.Parent.Children[parentBranchIndx] = sibling
         else: # sibling is branch
             '''
                 Current branch parent becomes an extension
@@ -343,7 +379,7 @@ class MPT:
             )
 
             parentBranchIndx = child.Parent.Parent.GetBranchIndxForParticularNode(child.Parent)
-            child.Parent.Parent[parentBranchIndx] = newExtension
+            child.Parent.Parent.Children[parentBranchIndx] = newExtension
 
     def __FindSibling__(self, child: BaseNode, branchIndx: str):
         if child.Parent.Type == node_enums.NodeType.BRANCH:

@@ -1,3 +1,5 @@
+import random
+from models.branch_node import BranchNode
 from models.node_enums import NodeValue
 from models.node_key import NodeKey
 from operations.mpt_trie import MPT
@@ -24,22 +26,51 @@ def delete_key(key: str, mpt:MPT):
     else:
         print(f"Deleted route with key {key}")
 
+KEY_LENGTH = 10
+NOF_NODES = 20
+KEY_START = 'a'
+MIN_NODE_VALUE = -100
+MAX_NODE_VALUE = -100
+NOF_RANDOM_KEY_CHECKS = 5
+
 def main():
-    mpt = MPT.CreateMPT(NodeKey("a711355"), NodeValue(1))
-    mpt.Insert(NodeKey("a7ad337"), NodeValue(22))
-    mpt.Insert(NodeKey("a4ad337"), NodeValue(23))
-    mpt.Insert(NodeKey("a7ad567"), NodeValue(24))
-    mpt.Insert(NodeKey("a4a4337"), NodeValue(255))
 
-    check_for_key("a711355", mpt)
+    keys = []
+
+    for i in range(NOF_NODES):
+        key = ''
+        for j in range(KEY_LENGTH):
+            key += BranchNode.possibleBranchIndxs[random.randint(0, len(BranchNode.possibleBranchIndxs)-1)]
+        if not(key in keys):
+            keys.append(key)
+
+    mpt = MPT.CreateMPT(NodeKey(keys[0]), NodeValue(1))
+
+    for i in range(len(keys)):
+        if i != 0:
+            mpt.Insert(NodeKey(keys[i]), NodeValue(random.randint(MIN_NODE_VALUE, MAX_NODE_VALUE)))
+
+    print()
+    for i in range(NOF_RANDOM_KEY_CHECKS):
+        print("Key should be in trie")
+        check_for_key(keys[random.randint(0, len(keys)-1)], mpt)
+
     check_for_key("1111111", mpt)
-    check_for_key("", mpt)
+    # check_for_key("", mpt)
 
-    update_for_key("a711355", 234, mpt)
-    update_for_key("", 234, mpt)
+    print()
+    for i in range(NOF_RANDOM_KEY_CHECKS):
+        print("Key should be in trie")
+        update_for_key(keys[random.randint(0, len(keys)-1)], random.randint(MIN_NODE_VALUE, MAX_NODE_VALUE), mpt)
 
-    delete_key("a4ad337", mpt)
-    delete_key("", mpt)
+    # update_for_key("", 234, mpt)
+
+    print()
+    for i in range(NOF_RANDOM_KEY_CHECKS):
+        print("Key should be in trie")
+        delete_key(keys[random.randint(0, len(keys)-1)], mpt)
+
+    # delete_key("", mpt)
 
 
 if __name__ == "__main__":

@@ -21,7 +21,7 @@ class MPT:
         ))
 
     def Insert(self, key: node_key.NodeKey, value: node_enums.NodeValue):
-        self.GetLastSimilarNode(self.Root, key)
+        self.__GetLastSimilarNode__(self.Root, key)
 
         if self.LastSimilarNode.Type == node_enums.NodeType.LEAF:
             '''
@@ -55,7 +55,7 @@ class MPT:
             newBranch.Children[newLeaf1Key.Key[0]] = leaf_node.LeafNode(
                 prefix=fixedNewLeaf1Key.GetPrefix(node_enums.NodeType.LEAF),
                 keyEnd=fixedNewLeaf1Key,
-                value=value,
+                value=self.LastSimilarNode.Value,
                 parent=newBranch
             )
 
@@ -140,30 +140,216 @@ class MPT:
             else:
                 raise "Extension has wrong parent"
 
-    def GetLastSimilarNode(self, nodeToCompareTo, key: node_key.NodeKey):
+    def __GetLastSimilarNode__(self, nodeToCompareTo, key: node_key.NodeKey):
         tearedKey:node_key.TearedKey = nodeToCompareTo.TearApartGivenKeyWithMine(key)
 
         if nodeToCompareTo.Type == node_enums.NodeType.BRANCH:
             if nodeToCompareTo.IsKeyInBranch(key):
                 branchIndx = key.Key[0]
                 self.LastBranchKeyAccessed = branchIndx
-                self.GetLastSimilarNode(nodeToCompareTo.Children[branchIndx], node_key.NodeKey(tearedKey.PartThatLeft))
+                self.__GetLastSimilarNode__(nodeToCompareTo.Children[branchIndx], node_key.NodeKey(tearedKey.PartThatLeft))
             else:
                 self.LastSimilarNode = nodeToCompareTo
                 self.TearedKey = tearedKey
                 
         elif nodeToCompareTo.Type == node_enums.NodeType.EXTENSION:
             if key.Key.startswith(nodeToCompareTo.Key.Key):
-                self.GetLastSimilarNode(nodeToCompareTo.BranchChild, node_key.NodeKey(tearedKey.PartThatLeft))
+                self.__GetLastSimilarNode__(nodeToCompareTo.BranchChild, node_key.NodeKey(tearedKey.PartThatLeft))
             else:
                 self.LastSimilarNode = nodeToCompareTo
                 self.TearedKey = tearedKey
         else:
             lastSimilar = nodeToCompareTo
 
-            if nodeToCompareTo.Key.CountSimilaritiesWithKey(key) == node_key.NO_SIMILARITY_BETWEEN_KEYS:
-                lastSimilar = nodeToCompareTo.Parent
-            
             self.LastSimilarNode = lastSimilar
             self.TearedKey = tearedKey
-            # self.KeyDifference = tearedKey
+
+    def Search(self, key: node_key.NodeKey) -> node_enums.NodeValue:
+        return self.__SearchInNode__(self.Root, key)
+
+    def __SearchInNode__(self, node: BaseNode, key: node_key.NodeKey) -> node_enums.NodeValue:
+        if node.Type == node_enums.NodeType.BRANCH:
+            if node.IsKeyInBranch(key):
+                return self.__SearchInNode__(node.Children[key.Key[0]], node_key.NodeKey(key.Key[1:]))
+            else:
+                return None
+        elif node.Type == node_enums.NodeType.EXTENSION:
+            if node.Key.CountSimilaritiesWithKey(key) != 0:
+                tearedKey = node.Key.TearApartGivenKeyWithMe(key)
+                return self.__SearchInNode__(node.BranchChild, node_key.NodeKey(tearedKey.PartThatLeft))
+            else:
+                return None
+        else: # Leaf
+            return node.Value
+        
+    def Update(self, key: node_key.NodeKey, value: node_enums.NodeValue):
+        return self.__UpdateNode__(self.Root, key, value)
+
+    def __UpdateNode__(self, node: BaseNode, key: node_key.NodeKey, value: node_enums.NodeValue):
+        if node.Type == node_enums.NodeType.BRANCH:
+            if node.IsKeyInBranch(key):
+                return self.__UpdateNode__(node.Children[key.Key[0]], node_key.NodeKey(key.Key[1:]), value)
+            else:
+                return None
+        elif node.Type == node_enums.NodeType.EXTENSION:
+            if node.Key.CountSimilaritiesWithKey(key) != 0:
+                tearedKey = node.Key.TearApartGivenKeyWithMe(key)
+                return self.__UpdateNode__(node.BranchChild, node_key.NodeKey(tearedKey.PartThatLeft), value)
+            else:
+                return None
+        else: # Leaf
+            node.Value = value
+            return node
+
+    def Delete(self, key: node_key.NodeKey):
+        return self.__DeleteNode__(self.Root, key)
+
+    def __DeleteNode__(self, node: BaseNode, key: node_key.NodeKey):
+        if node.Type == node_enums.NodeType.BRANCH:
+            if node.IsKeyInBranch(key):
+                self.LastBranchKeyAccessed = key.Key[0]
+                return self.__DeleteNode__(node.Children[key.Key[0]], node_key.NodeKey(key.Key[1:]))
+            else:
+                return False
+        elif node.Type == node_enums.NodeType.EXTENSION:
+            if node.Key.CountSimilaritiesWithKey(key) != 0:
+                tearedKey = node.Key.TearApartGivenKeyWithMe(key)
+                return self.__DeleteNode__(node.BranchChild, node_key.NodeKey(tearedKey.PartThatLeft))
+            else:
+                return False
+        else: # Leaf
+            if node.Parent.Type == node_enums.NodeType.BRANCH:
+                return self.__DeleteChildOfBranch__(node, key)
+            else:
+                raise "Leaf should have branch as parent"
+
+    def __DeleteChildOfBranch__(self, child: BaseNode, key: node_key.NodeKey):
+        nofSiblings = len(child.Parent.Children.keys())
+                
+        if nofSiblings == 2: 
+            '''
+                Only 1 leaf will be left after we delete current one,
+                because of that we need to transform the branch 
+            '''
+            if child.Parent.Parent.Type == node_enums.NodeType.BRANCH:
+                self.__DeleteGrandparentIsBranch__(child, key)
+            elif child.Parent.Parent.Type == node_enums.NodeType.EXTENSION:
+                self.__DeleteGrandparentIsExtension__(child, key)
+            else:
+                raise "leaf can not be a parent"
+        else:
+            '''
+                We can safely delete just this leaf, since branch will have >=2 children left
+                and is still valid branch
+            '''
+            del child.Parent.Children[self.LastBranchKeyAccessed]
+
+        return True
+
+    def __DeleteGrandparentIsExtension__(self, child: BaseNode, key: node_key.NodeKey):
+        sibling = self.__FindSibling__(child, self.LastBranchKeyAccessed)
+        if sibling.Type == node_enums.NodeType.LEAF:
+            '''
+                Parent extension becomes leaf, with key: extKey + branchIndx + leafSiblingKey
+            '''
+            newLeafKey = node_key.NodeKey(child.Parent.Parent.Key.Key + self.LastBranchKeyAccessed + sibling.Key.Key)
+            newLeaf = leaf_node.LeafNode(
+                prefix=newLeafKey.GetPrefix(node_enums.NodeType.LEAF),
+                keyEnd=newLeafKey,
+                value=sibling.Value,
+                parent=child.Parent.Parent.Parent
+            )
+
+            if child.Parent.Parent.Parent is None:
+                self.Root = newLeaf
+            else: # 3rd degree parent is branch 
+                grandParentBranchIndx = child.Parent.Parent.Parent.GetBranchIndxForParticularNode(child.Parent.Parent)
+                child.Parent.Parent.Parent.Children[grandParentBranchIndx] = newLeaf
+        elif sibling.Type == node_enums.NodeType.EXTENSION:
+            '''
+                Merge grandparent extension, branch, and sibling extension into new extension
+            '''
+            newExtensionKey = node_key.NodeKey(child.Parent.Parent.Key.Key + self.LastBranchKeyAccessed + sibling.Key.Key)
+            newExtension = ExtensionNode(
+                prefix=newExtensionKey.GetPrefix(node_enums.NodeType.EXTENSION),
+                sharedKey=newExtensionKey,
+                branchChild=sibling.BranchChild,
+                parent=child.Parent.Parent.Parent
+            )
+
+            if child.Parent.Parent.Parent is None:
+                self.Root = newExtension
+            else: # 3rd degree parent is branch 
+                grandParentBranchIndx = child.Parent.Parent.Parent.GetBranchIndxForParticularNode(child.Parent.Parent)
+                child.Parent.Parent.Parent.Children[grandParentBranchIndx] = newExtension
+        else: # sibling is branch
+            '''
+                Parent of child (branch) becomes and extension merged with it's parent extension
+            '''
+            newExtensionKey = node_key.NodeKey(child.Parent.Parent.Key.Key + self.LastBranchKeyAccessed)
+            newExtension = ExtensionNode(
+                prefix=newExtensionKey.GetPrefix(node_enums.NodeType.EXTENSION),
+                sharedKey=newExtensionKey,
+                branchChild=sibling,
+                parent=child.Parent.Parent
+            )
+            
+            if child.Parent.Parent.Parent is None:
+                self.Root = newExtension
+            else: # 3rd degree parent is branch 
+                grandParentBranchIndx = child.Parent.Parent.Parent.GetBranchIndxForParticularNode(child.Parent.Parent)
+                child.Parent.Parent.Parent.Children[grandParentBranchIndx] = newExtension
+
+
+    def __DeleteGrandparentIsBranch__(self, child: BaseNode, key: node_key.NodeKey):
+        sibling = self.__FindSibling__(child, self.LastBranchKeyAccessed)
+        if sibling.Type == node_enums.NodeType.LEAF:
+            '''
+                Child.Parent branch becomes leaf, with key branchIndx + sibling.Key
+            '''
+            newLeafKey = node_key.NodeKey(self.LastBranchKeyAccessed + sibling.Key)
+            newLeaf = leaf_node.LeafNode(
+                prefix=newLeafKey.GetPrefix(node_enums.NodeType.LEAF),
+                keyEnd=newLeafKey,
+                parent=child.Parent.Parent,
+                value=sibling.Value
+            )
+
+            parentBranchIndx = child.Parent.Parent.GetBranchIndxForParticularNode(child.Parent)
+            child.Parent.Parent[parentBranchIndx] = newLeaf
+
+        elif sibling.Type == node_enums.NodeType.EXTENSION:
+            '''
+                Branch get merged with sibling extension
+                Sibling extension new key is: branchIndx + extensionOldKey
+            '''
+            newExtensionKey = node_key.NodeKey(self.LastBranchKeyAccessed + sibling.Key.Key)
+            sibling.Key = newExtensionKey
+            sibling.Parent = child.Parent.Parent
+
+            parentBranchIndx = child.Parent.Parent.GetBranchIndxForParticularNode(child.Parent)
+            child.Parent.Parent[parentBranchIndx] = sibling
+        else: # sibling is branch
+            '''
+                Current branch parent becomes an extension
+                Not sure if this is right
+            '''
+            newExtensionKey = node_key.NodeKey(key.Key)
+            newExtension = ExtensionNode(
+                prefix=newExtensionKey.GetPrefix(node_enums.NodeType.EXTENSION),
+                sharedKey=newExtensionKey,
+                branchChild=sibling,
+                parent=child.Parent.Parent
+            )
+
+            parentBranchIndx = child.Parent.Parent.GetBranchIndxForParticularNode(child.Parent)
+            child.Parent.Parent[parentBranchIndx] = newExtension
+
+    def __FindSibling__(self, child: BaseNode, branchIndx: str):
+        if child.Parent.Type == node_enums.NodeType.BRANCH:
+            for k, v in child.Parent.Children.items():
+                if k != branchIndx:
+                    return v
+            raise "coudln't find sibling"
+        else:
+            raise "parent is not a branch"

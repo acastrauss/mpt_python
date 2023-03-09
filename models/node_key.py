@@ -1,6 +1,6 @@
 import models.node_enums as node_enums
 
-NO_SIMILARITY_BETWEEN_KEYS = -1
+SIMILARITY_INDEX_NOT_FOUND = -1
 
 class TearedKey:
     def __init__(self, tearedPart: str, partThatLeft: str) -> None:
@@ -33,7 +33,7 @@ class NodeKey:
         return TearedKey(key.Key[:indexOfSimilarity], key.Key[indexOfSimilarity:])
 
     def GetLastSimilarCharWithGivenKey(self, key):
-        lastSimilarIndx = NO_SIMILARITY_BETWEEN_KEYS
+        lastSimilarIndx = SIMILARITY_INDEX_NOT_FOUND
 
         for i in range(min(self.GetLen(), key.GetLen())):
             if self.Key[i] == key.Key[i]:
@@ -41,7 +41,7 @@ class NodeKey:
             else:
                 break
 
-        if lastSimilarIndx == NO_SIMILARITY_BETWEEN_KEYS:
+        if lastSimilarIndx == SIMILARITY_INDEX_NOT_FOUND:
             raise "no similarity"
         
         return key.Key[lastSimilarIndx]

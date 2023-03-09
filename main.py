@@ -3,6 +3,7 @@ from models.branch_node import BranchNode
 from models.node_enums import NodeValue
 from models.node_key import NodeKey
 from operations.mpt_trie import MPT
+import sha3
 
 def check_for_key(key:str, mpt: MPT):
     val = mpt.Search(NodeKey(key))
@@ -28,32 +29,37 @@ def delete_key(key: str, mpt:MPT):
 
 KEY_LENGTH = 10
 NOF_NODES = 20
-KEY_START = 'a'
 MIN_NODE_VALUE = -100
 MAX_NODE_VALUE = -100
 NOF_RANDOM_KEY_CHECKS = 5
 
+class InsertValue:
+    def __init__(self, key: NodeKey, value: NodeValue) -> None:
+        self.Key = key
+        self.Value = value
+
 def main():
 
-    keys = []
-
+    insertValues: list[InsertValue] = []
+    k = sha3.keccak_512()
     for i in range(NOF_NODES):
-        key = ''
-        for j in range(KEY_LENGTH):
-            key += BranchNode.possibleBranchIndxs[random.randint(0, len(BranchNode.possibleBranchIndxs)-1)]
-        if not(key in keys):
-            keys.append(key)
+        val = random.randint(MIN_NODE_VALUE, MAX_NODE_VALUE)
+        k.update(val.to_bytes(4, 'big', signed=True))
+        insertValues.append(InsertValue(
+            NodeKey(k.hexdigest()),
+            NodeValue(val)
+        ))
 
-    mpt = MPT.CreateMPT(NodeKey(keys[0]), NodeValue(1))
+    mpt = MPT.CreateMPT(insertValues[0].Key, insertValues[0].Value)
 
-    for i in range(len(keys)):
+    for i in range(len(insertValues)):
         if i != 0:
-            mpt.Insert(NodeKey(keys[i]), NodeValue(random.randint(MIN_NODE_VALUE, MAX_NODE_VALUE)))
+            mpt.Insert(insertValues[i].Key, insertValues[i].Value)
 
     print()
     for i in range(NOF_RANDOM_KEY_CHECKS):
         print("Key should be in trie")
-        check_for_key(keys[random.randint(0, len(keys)-1)], mpt)
+        check_for_key(insertValues[random.randint(0, len(insertValues)-1)].Key.Key, mpt)
 
     check_for_key("1111111", mpt)
     # check_for_key("", mpt)
@@ -61,14 +67,14 @@ def main():
     print()
     for i in range(NOF_RANDOM_KEY_CHECKS):
         print("Key should be in trie")
-        update_for_key(keys[random.randint(0, len(keys)-1)], random.randint(MIN_NODE_VALUE, MAX_NODE_VALUE), mpt)
+        update_for_key(insertValues[random.randint(0, len(insertValues)-1)].Key.Key, random.randint(MIN_NODE_VALUE, MAX_NODE_VALUE), mpt)
 
     # update_for_key("", 234, mpt)
 
     print()
     for i in range(NOF_RANDOM_KEY_CHECKS):
         print("Key should be in trie")
-        delete_key(keys[random.randint(0, len(keys)-1)], mpt)
+        delete_key(insertValues[random.randint(0, len(insertValues)-1)].Key.Key, mpt)
 
     # delete_key("", mpt)
 

@@ -11,6 +11,12 @@ class NodeKey:
     def __init__(self, key: str) -> None:
         self.Key = key
 
+    def __eq__(self, __o: object) -> bool:
+        if (isinstance(__o, self.__class__)):
+            return self.Key == __o.Key
+        else:
+            return False
+
     def GetPrefix(self, nodeType: node_enums.NodeType) -> node_enums.NodePrefix:
         lenModule = self.GetLen() % 2
         return node_enums.NodePrefix(lenModule + nodeType.value * 2)

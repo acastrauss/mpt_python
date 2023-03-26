@@ -15,3 +15,13 @@ class NodePrefix(Enum):
 class NodeValue:
     def __init__(self, value) -> None:
         self.Value = value
+
+    def GetBytes(self):
+        return self.Value.to_bytes(4, 'big', signed=True)
+
+    def __eq__(self, __o: object) -> bool:
+        if isinstance(__o, self.__class__):
+            return __o.Value == self.Value
+        else:
+            return False
+

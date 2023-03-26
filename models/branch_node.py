@@ -28,7 +28,7 @@ class BranchNode(BaseNode):
 
     def GetBranchIndxForParticularNode(self, node:BaseNode)-> str:
         for k, v in self.Children.items():
-            if v.InstanceId == node.InstanceId:
+            if id(v) == id(node):
                 return k
         
         raise "node not in branch"

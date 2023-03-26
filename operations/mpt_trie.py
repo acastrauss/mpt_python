@@ -282,7 +282,7 @@ class MPT:
             else:
                 return None
         elif node.Type == node_enums.NodeType.EXTENSION:
-            if node.Key.CountSimilaritiesWithKey(key) != 0:
+            if key.Key.startswith(node.Key.Key):
                 tearedKey = node.Key.TearApartGivenKeyWithMe(key)
                 return self.__UpdateNode__(node.BranchChild, node_key.NodeKey(tearedKey.PartThatLeft), value)
             else:
@@ -302,7 +302,7 @@ class MPT:
             else:
                 return False
         elif node.Type == node_enums.NodeType.EXTENSION:
-            if node.Key.CountSimilaritiesWithKey(key) != 0:
+            if key.Key.startswith(node.Key.Key):
                 tearedKey = node.Key.TearApartGivenKeyWithMe(key)
                 return self.__DeleteNode__(node.BranchChild, node_key.NodeKey(tearedKey.PartThatLeft))
             else:
